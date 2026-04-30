@@ -16,19 +16,19 @@ var (
 )
 
 type ValidateMagicLinkBO struct {
-	repo             interfaces.MagicLinkRepository
+	dao              interfaces.MagicLinkDAO
 	authTokenService interfaces.AuthTokenService
 }
 
 func NewValidateMagicLinkBO(
-	repo interfaces.MagicLinkRepository,
+	dao interfaces.MagicLinkDAO,
 	authTokenService interfaces.AuthTokenService,
 ) *ValidateMagicLinkBO {
-	return &ValidateMagicLinkBO{repo: repo, authTokenService: authTokenService}
+	return &ValidateMagicLinkBO{dao: dao, authTokenService: authTokenService}
 }
 
 func (b *ValidateMagicLinkBO) Execute(token string) (string, error) {
-	link, err := b.repo.FindByToken(token)
+	link, err := b.dao.FindByToken(token)
 	if err != nil {
 		return "", ErrTokenNotFound
 	}
@@ -41,7 +41,7 @@ func (b *ValidateMagicLinkBO) Execute(token string) (string, error) {
 		return "", ErrTokenExpired
 	}
 
-	if err := b.repo.MarkAsUsed(token); err != nil {
+	if err := b.dao.MarkAsUsed(token); err != nil {
 		return "", fmt.Errorf("mark token as used: %w", err)
 	}
 

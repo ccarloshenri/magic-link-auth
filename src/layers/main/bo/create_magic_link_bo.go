@@ -10,20 +10,20 @@ import (
 )
 
 type CreateMagicLinkBO struct {
-	repo         interfaces.MagicLinkRepository
+	dao          interfaces.MagicLinkDAO
 	emailService interfaces.EmailService
 	tokenService interfaces.TokenService
 	baseURL      string
 }
 
 func NewCreateMagicLinkBO(
-	repo interfaces.MagicLinkRepository,
+	dao interfaces.MagicLinkDAO,
 	emailService interfaces.EmailService,
 	tokenService interfaces.TokenService,
 	baseURL string,
 ) *CreateMagicLinkBO {
 	return &CreateMagicLinkBO{
-		repo:         repo,
+		dao:          dao,
 		emailService: emailService,
 		tokenService: tokenService,
 		baseURL:      baseURL,
@@ -43,7 +43,7 @@ func (b *CreateMagicLinkBO) Execute(email string) error {
 		Status:    enums.Pending,
 	}
 
-	if err := b.repo.Save(link); err != nil {
+	if err := b.dao.Save(link); err != nil {
 		return fmt.Errorf("save magic link: %w", err)
 	}
 

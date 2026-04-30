@@ -1,4 +1,4 @@
-package handler
+package controller
 
 import (
 	"errors"
@@ -8,21 +8,20 @@ import (
 	"github.com/carlos-sousa/magic-link-auth/src/layers/main/processor"
 )
 
-type ValidateMagicLinkHandler struct {
+type ValidateMagicLinkController struct {
 	processor *processor.ValidateMagicLinkProcessor
 }
 
-func NewValidateMagicLinkHandler(p *processor.ValidateMagicLinkProcessor) *ValidateMagicLinkHandler {
-	return &ValidateMagicLinkHandler{processor: p}
+func NewValidateMagicLinkController(p *processor.ValidateMagicLinkProcessor) *ValidateMagicLinkController {
+	return &ValidateMagicLinkController{processor: p}
 }
 
-func (h *ValidateMagicLinkHandler) Handle(w http.ResponseWriter, r *http.Request) {
+func (c *ValidateMagicLinkController) Handle(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 
-	output, err := h.processor.Process(token)
+	output, err := c.processor.Process(token)
 	if err != nil {
-		status := resolveStatus(err)
-		writeJSON(w, status, map[string]string{"error": err.Error()})
+		writeJSON(w, resolveStatus(err), map[string]string{"error": err.Error()})
 		return
 	}
 

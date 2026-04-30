@@ -1,4 +1,4 @@
-package handler
+package controller
 
 import (
 	"encoding/json"
@@ -8,22 +8,22 @@ import (
 	"github.com/carlos-sousa/magic-link-auth/src/layers/main/processor"
 )
 
-type CreateMagicLinkHandler struct {
+type CreateMagicLinkController struct {
 	processor *processor.CreateMagicLinkProcessor
 }
 
-func NewCreateMagicLinkHandler(p *processor.CreateMagicLinkProcessor) *CreateMagicLinkHandler {
-	return &CreateMagicLinkHandler{processor: p}
+func NewCreateMagicLinkController(p *processor.CreateMagicLinkProcessor) *CreateMagicLinkController {
+	return &CreateMagicLinkController{processor: p}
 }
 
-func (h *CreateMagicLinkHandler) Handle(w http.ResponseWriter, r *http.Request) {
+func (c *CreateMagicLinkController) Handle(w http.ResponseWriter, r *http.Request) {
 	var input processor.CreateMagicLinkInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
-	if err := h.processor.Process(input); err != nil {
+	if err := c.processor.Process(input); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
