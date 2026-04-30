@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/bo"
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/processor"
+	"magic-link-auth/src/layers/main/bo"
+	"magic-link-auth/src/layers/main/processor"
 )
 
 type ValidateMagicLinkController struct {

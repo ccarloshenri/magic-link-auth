@@ -4,8 +4,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/enums"
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/models"
+	"magic-link-auth/src/layers/main/enums"
+	"magic-link-auth/src/layers/main/models"
 )
 
 type InMemoryMagicLinkDAO struct {

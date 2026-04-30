@@ -1,4 +1,4 @@
-module github.com/carlos-sousa/magic-link-auth
+module magic-link-auth
 
 go 1.22
 

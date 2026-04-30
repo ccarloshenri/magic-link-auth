@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/processor"
+	"magic-link-auth/src/layers/main/processor"
 )
 
 type CreateMagicLinkController struct {

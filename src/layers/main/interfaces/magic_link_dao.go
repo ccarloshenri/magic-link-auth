@@ -1,6 +1,6 @@
 package interfaces
 
-import "github.com/carlos-sousa/magic-link-auth/src/layers/main/models"
+import "magic-link-auth/src/layers/main/models"
 
 type MagicLinkDAO interface {
 	Save(link models.MagicLink) error

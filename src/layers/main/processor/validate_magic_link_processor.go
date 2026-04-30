@@ -3,7 +3,7 @@ package processor
 import (
 	"errors"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/bo"
+	"magic-link-auth/src/layers/main/bo"
 )
 
 type ValidateMagicLinkOutput struct {

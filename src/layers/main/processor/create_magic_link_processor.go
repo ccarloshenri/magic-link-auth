@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/mail"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/bo"
+	"magic-link-auth/src/layers/main/bo"
 )
 
 type CreateMagicLinkInput struct {

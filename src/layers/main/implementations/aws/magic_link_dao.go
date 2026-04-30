@@ -5,7 +5,7 @@ package aws
 import (
 	"errors"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/models"
+	"magic-link-auth/src/layers/main/models"
 )
 
 // DynamoDBMagicLinkDAO is a placeholder for the DynamoDB-backed DAO.

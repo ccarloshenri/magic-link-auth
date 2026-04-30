@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/enums"
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/interfaces"
-	"github.com/carlos-sousa/magic-link-auth/src/layers/main/models"
+	"magic-link-auth/src/layers/main/enums"
+	"magic-link-auth/src/layers/main/interfaces"
+	"magic-link-auth/src/layers/main/models"
 )
 
 type CreateMagicLinkBO struct {
