@@ -7,6 +7,7 @@ import (
 	"magic-link-auth/src/layers/main/bo"
 	"magic-link-auth/src/layers/main/controller"
 	"magic-link-auth/src/layers/main/implementations/memory"
+	smtpimpl "magic-link-auth/src/layers/main/implementations/smtp"
 	"magic-link-auth/src/layers/main/interfaces"
 	"magic-link-auth/src/layers/main/processor"
 )
@@ -15,9 +16,10 @@ func main() {
 	cfg := loadConfig()
 
 	dao := memory.NewInMemoryMagicLinkDAO()
-	emailService := memory.NewLogEmailService()
 	tokenService := memory.NewCryptoTokenService()
 	authTokenService := memory.NewJWTAuthTokenService(cfg.JWTSecret)
+
+	emailService := resolveEmailService(cfg)
 
 	createBO := bo.NewCreateMagicLinkBO(dao, emailService, tokenService, cfg.BaseURL)
 	validateBO := bo.NewValidateMagicLinkBO(dao, authTokenService)
@@ -34,4 +36,13 @@ func main() {
 
 	log.Printf("Server running on :%s", cfg.Port)
 	log.Fatal(http.ListenAndServe(":"+cfg.Port, mux))
+}
+
+func resolveEmailService(cfg config) interfaces.EmailService {
+	if cfg.SMTPHost != "" {
+		log.Printf("Email: SMTP → %s:%s (from: %s)", cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
+		return smtpimpl.NewSMTPEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
+	}
+	log.Println("Email: log-only mode (set SMTP_HOST to enable real delivery)")
+	return memory.NewLogEmailService()
 }
