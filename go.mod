@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.52.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -19,4 +20,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.9 // indirect
 	github.com/aws/smithy-go v1.23.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

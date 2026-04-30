@@ -9,7 +9,7 @@ Passwordless authentication service built in Go 1.22 that issues magic links via
 ## What it does
 
 - Accepts an email address, generates a cryptographically secure token (32 bytes, hex-encoded), and persists it with a 15-minute expiry
-- Sends a magic link to the user (`BASE_URL/auth/validate?token=<hex>`) — logged to stdout in local mode, delivered via Amazon SES in production
+- Sends a magic link to the user — logged to stdout in local mode, delivered via SMTP or Amazon SES in production
 - Validates the token against existence, expiry, and single-use constraints
 - Marks the token as `USED` immediately on first successful validation
 - Issues a signed JWT (HS256, 24 h) upon successful authentication
@@ -40,48 +40,66 @@ CreateMagicLinkBO           ValidateMagicLinkBO
    +----+----+                   +------+------+
    v         v                   v             v
 MagicLinkDAO EmailService   MagicLinkDAO  AuthTokenService
-(in-memory)  (log stub)     (in-memory)  (JWT HS256)
+(in-memory)  (log/smtp)     (in-memory)  (JWT HS256)
 ```
 
 All BOs and processors depend exclusively on interfaces. Concrete implementations are injected in `src/containers/server.go`, keeping business rules free of infrastructure concerns.
 
-### Package structure
+### Project structure
 
 ```
-src/
-├── containers/
-│   ├── server.go           # Entry point: manual DI wiring and HTTP server
-│   └── env.go              # Config struct loaded from environment variables
-└── layers/main/
-    ├── enums/
-    │   └── token_status.go # TokenStatus: PENDING | USED | EXPIRED
-    ├── models/
-    │   └── magic_link.go   # MagicLink domain struct
-    ├── interfaces/         # Abstract contracts (ISP)
-    │   ├── controller.go         # Controller: Handle(w, r)
-    │   ├── magic_link_dao.go     # MagicLinkDAO: Save, FindByToken, MarkAsUsed
-    │   ├── email_service.go      # EmailService: SendMagicLink
-    │   ├── token_service.go      # TokenService: Generate
-    │   └── auth_token_service.go # AuthTokenService: GenerateJWT
-    ├── implementations/
-    │   ├── memory/               # Active local implementations
-    │   │   ├── magic_link_dao.go    # In-memory store with sync.RWMutex
-    │   │   ├── token_service.go     # crypto/rand, 32 bytes -> hex
-    │   │   ├── auth_token_service.go# JWT HS256 via golang-jwt
-    │   │   └── email_service.go     # Logs magic link to stdout
-    │   └── aws/                  # Production stubs (DynamoDB, SES)
-    │       ├── magic_link_dao.go    # DynamoDBMagicLinkDAO (not yet implemented)
-    │       └── email_service.go     # SESEmailService (not yet implemented)
-    ├── bo/                       # Pure business rules
-    │   ├── create_magic_link_bo.go  # Generates token, saves, dispatches email
-    │   └── validate_magic_link_bo.go# Validates token, marks USED, issues JWT
-    ├── processor/                # Input validation and orchestration
-    │   ├── create_magic_link_processor.go
-    │   └── validate_magic_link_processor.go
-    └── controller/               # HTTP parsing and response formatting
-        ├── create_magic_link_controller.go
-        ├── validate_magic_link_controller.go
-        └── response.go              # writeJSON helper
+.
+├── src/
+│   ├── containers/
+│   │   ├── server.go                    # Entry point: DI wiring and HTTP server
+│   │   └── env.go                       # Config struct loaded from environment variables
+│   └── layers/main/
+│       ├── enums/
+│       │   └── token_status.go          # TokenStatus: PENDING | USED | EXPIRED
+│       ├── models/
+│       │   └── magic_link.go            # MagicLink domain struct
+│       ├── interfaces/                  # Abstract contracts (ISP)
+│       │   ├── controller.go
+│       │   ├── magic_link_dao.go        # Save, FindByToken, MarkAsUsed
+│       │   ├── email_service.go         # SendMagicLink
+│       │   ├── token_service.go         # Generate
+│       │   ├── auth_token_service.go    # GenerateJWT
+│       │   └── secrets_service.go       # GetSecret
+│       ├── bo/                          # Pure business rules, framework-independent
+│       │   ├── create_magic_link_bo.go
+│       │   └── validate_magic_link_bo.go
+│       ├── processor/                   # Input validation + BO orchestration
+│       │   ├── create_magic_link_processor.go
+│       │   └── validate_magic_link_processor.go
+│       ├── controller/                  # HTTP parsing and response formatting
+│       │   ├── create_magic_link_controller.go
+│       │   ├── validate_magic_link_controller.go
+│       │   └── response.go
+│       └── implementations/
+│           ├── memory/                  # Local stubs (active by default)
+│           │   ├── magic_link_dao.go    # sync.RWMutex in-memory store
+│           │   ├── token_service.go     # crypto/rand → 64-char hex
+│           │   ├── auth_token_service.go# JWT HS256 via golang-jwt
+│           │   ├── email_service.go     # Logs magic link to stdout
+│           │   └── secrets_service.go   # Map-backed local secrets
+│           ├── smtp/
+│           │   └── email_service.go     # Sends via SMTP (local MailPit or real relay)
+│           └── aws/                     # Production implementations
+│               ├── magic_link_dao.go    # DynamoDB
+│               ├── email_service.go     # Amazon SES v2
+│               └── secrets_service.go   # AWS Secrets Manager
+├── tests/
+│   ├── testutil/
+│   │   └── mocks.go                     # Shared mock structs for all interfaces
+│   └── unit/
+│       ├── bo/
+│       │   ├── create_magic_link_bo_test.go
+│       │   └── validate_magic_link_bo_test.go
+│       └── processor/
+│           ├── create_magic_link_processor_test.go
+│           └── validate_magic_link_processor_test.go
+└── ui/
+    └── index.html                       # Minimal frontend for end-to-end validation
 ```
 
 ### SOLID principles applied
@@ -101,10 +119,10 @@ src/
 |---|---|---|
 | `POST` | `/auth/magic-link` | Request a magic link for the given email |
 | `GET` | `/auth/validate` | Validate a token and receive a JWT |
+| `GET` | `/` | Frontend UI (served from `ui/`) |
 
 **`POST /auth/magic-link`**
 
-Request body:
 ```json
 {"email": "user@example.com"}
 ```
@@ -136,14 +154,7 @@ Error responses:
 ### Prerequisites
 
 - Go 1.22+
-
-### Setup
-
-```bash
-git clone <repo-url>
-cd magic-link-auth
-go mod download
-```
+- (Optional) [MailPit](https://github.com/axllent/mailpit) for end-to-end email validation
 
 ### Run
 
@@ -151,70 +162,152 @@ go mod download
 go run ./src/containers
 ```
 
-With custom environment variables:
-
-```bash
-JWT_SECRET=my-secret BASE_URL=http://localhost:8080 PORT=8080 go run ./src/containers
-```
-
-The server starts on `http://localhost:8080`. The magic link token is printed to stdout by `LogEmailService`:
+The magic link token is printed to stdout by `LogEmailService`:
 
 ```
-[EMAIL] To: user@example.com | Magic Link: http://localhost:8080/auth/validate?token=<hex>
+[EMAIL] To: user@example.com | Magic Link: http://localhost:8080?token=<hex>
 ```
 
-### Tests
-
-The project does not have automated tests at this time. To validate the flow manually:
-
-```bash
-# 1. Request a magic link
-curl -X POST http://localhost:8080/auth/magic-link \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com"}'
-
-# 2. Copy the token printed in the server log, then validate it
-curl "http://localhost:8080/auth/validate?token=<token-from-log>"
-```
+Open `http://localhost:8080` in the browser to use the UI.
 
 ### Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
 | `JWT_SECRET` | `dev-secret-change-in-production` | HMAC key used to sign JWTs |
-| `BASE_URL` | `http://localhost:8080` | Base URL used to build the magic link |
+| `BASE_URL` | `http://localhost:8080` | Base URL embedded in the magic link sent by email |
 | `PORT` | `8080` | HTTP server port |
+| `SMTP_HOST` | _(empty)_ | SMTP host — if set, enables real email delivery |
+| `SMTP_PORT` | `1025` | SMTP port |
+| `SMTP_FROM` | `noreply@localhost` | Sender address used in outgoing emails |
+
+When `SMTP_HOST` is empty the service falls back to `LogEmailService`, which only prints the link to stdout.
 
 ---
 
-## Deploy
+## Testing
 
-### Docker
+### Unit tests
+
+Tests live in `tests/unit/` and are completely separated from production code. Shared mock structs for all interfaces are defined in `tests/testutil/mocks.go`.
+
+**What is tested:**
+
+| Package | Test cases |
+|---|---|
+| `bo` | Token generation error, DAO save error, email send error, success |
+| `bo` | Token not found, already used, status expired, time expired, mark-as-used error, JWT error, success |
+| `processor` | Empty email, invalid email format, BO error propagation, success |
+| `processor` | Empty token, token not found propagation, success + Bearer type |
+
+**What is not tested:** concrete implementations (`memory`, `smtp`, `aws`) — these are infrastructure and tested through end-to-end or integration flows.
+
+**Run all unit tests:**
+
+```bash
+go test ./tests/...
+```
+
+**Run with verbose output:**
+
+```bash
+go test ./tests/... -v
+```
+
+**Run a specific package:**
+
+```bash
+go test ./tests/unit/bo/...
+go test ./tests/unit/processor/...
+```
+
+**Run a single test:**
+
+```bash
+go test ./tests/unit/bo/... -run TestCreateMagicLinkBO_Success
+```
+
+### End-to-end with MailPit
+
+MailPit provides a local SMTP server with a web inbox, allowing you to receive the magic link email and complete the full authentication flow in the browser.
+
+**1. Start MailPit:**
+
+```bash
+docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+**2. Start the server with SMTP enabled:**
+
+```bash
+SMTP_HOST=localhost go run ./src/containers
+```
+
+**3. Open the UI and request a magic link:**
+
+```
+http://localhost:8080
+```
+
+**4. Check the inbox for the email:**
+
+```
+http://localhost:8025
+```
+
+**5. Click the link in the email.** The browser opens `http://localhost:8080?token=<hex>`, the frontend calls `GET /auth/validate`, and displays the JWT on screen.
+
+### Manual curl flow
+
+If you prefer the terminal without MailPit:
+
+```bash
+# 1. Request a magic link (token is printed in server stdout)
+curl -X POST http://localhost:8080/auth/magic-link \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+
+# 2. Validate the token (copy from server log)
+curl "http://localhost:8080/auth/validate?token=<token-from-log>"
+```
+
+---
+
+## Docker
 
 ```bash
 # Build
 docker build -t magic-link-auth .
 
-# Run
+# Run (log-only mode)
 docker run -p 8080:8080 \
   -e JWT_SECRET=change-me \
   -e BASE_URL=https://your-domain.com \
   magic-link-auth
+
+# Run with SMTP
+docker run -p 8080:8080 \
+  -e JWT_SECRET=change-me \
+  -e BASE_URL=https://your-domain.com \
+  -e SMTP_HOST=your-smtp-host \
+  -e SMTP_PORT=587 \
+  -e SMTP_FROM=noreply@your-domain.com \
+  magic-link-auth
 ```
 
-The Dockerfile uses a multi-stage build (`golang:1.22-alpine` builder -> `alpine:3.19` runtime) and runs the process as a non-root user.
+---
 
-### AWS ECS
+## Deploy (AWS ECS)
 
-To deploy to ECS, swap the `memory` implementations for `aws` ones in `src/containers/server.go`:
+Swap the `memory` implementations for `aws` in `src/containers/server.go`:
 
 | Local | Production | Notes |
 |---|---|---|
-| `memory.NewInMemoryMagicLinkDAO()` | `aws.DynamoDBMagicLinkDAO` | Requires table name and DynamoDB client |
-| `memory.NewLogEmailService()` | `aws.SESEmailService` | Requires sender address and SES client |
-| `memory.NewJWTAuthTokenService()` | `memory.NewJWTAuthTokenService()` | Infrastructure-agnostic — no change needed |
+| `memory.NewInMemoryMagicLinkDAO()` | `aws.NewDynamoDBMagicLinkDAO(...)` | Requires table name and DynamoDB client |
+| `memory.NewLogEmailService()` | `aws.NewSESEmailService(...)` | Requires sender address and SES client |
+| `memory.NewJWTAuthTokenService(...)` | `memory.NewJWTAuthTokenService(...)` | No change needed |
 
-No business logic needs to change. Only the wiring in `server.go` is updated.
+No business logic changes — only the wiring in `server.go` is updated.
 
 ---
 
@@ -225,16 +318,4 @@ No business logic needs to change. Only the wiring in `server.go` is updated.
 - Tokens are single-use — marked `USED` immediately after the first successful validation
 - JWTs are signed with HS256 and expire after 24 hours (`sub`, `iat`, `exp` claims)
 - Email addresses are validated with `net/mail` before any processing
-- The full token value is never logged — `LogEmailService` prints only the complete magic link URL
-
----
-
-## Technical reference
-
-| Path | Description |
-|---|---|
-| `src/containers/server.go` | Entry point and manual dependency injection wiring |
-| `src/containers/env.go` | Environment variable loading (`JWT_SECRET`, `BASE_URL`, `PORT`) |
-| `src/layers/main/interfaces/` | Abstract contracts defining layer boundaries |
-| `src/layers/main/bo/` | Pure business rules, framework-independent |
-| `src/layers/main/implementations/aws/` | Production stubs ready to implement for ECS |
+- The token value is never logged — only the complete magic link URL is printed in local mode
