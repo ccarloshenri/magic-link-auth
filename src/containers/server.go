@@ -30,7 +30,7 @@ func main() {
 	var validateCtrl interfaces.Controller = controller.NewValidateMagicLinkController(validateProcessor)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /", http.FileServer(http.Dir("static")))
+	mux.Handle("GET /", http.FileServer(http.Dir("ui")))
 	mux.HandleFunc("POST /auth/magic-link", createCtrl.Handle)
 	mux.HandleFunc("GET /auth/validate", validateCtrl.Handle)
 
