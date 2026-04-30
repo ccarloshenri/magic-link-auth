@@ -16,8 +16,8 @@ coverage.html
 # Go vendor (usar go modules)
 vendor/
 
-# Claude Code local settings (permissões pessoais de sessão)
-.claude/settings.local.json
+# Claude Code
+.claude/
 
 # OS
 .DS_Store
