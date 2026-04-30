@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Magic Link Auth</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f0f0f;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #e0e0e0;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 0.4rem;
+      color: #fff;
+    }
+
+    .subtitle {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 2rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #999;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 1rem;
+    }
+
+    input[type="email"]:focus { border-color: #555; }
+
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .status {
+      margin-top: 1.25rem;
+      padding: 0.875rem 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      display: none;
+    }
+
+    .status.info    { background: #1e2a3a; border: 1px solid #2a4060; color: #7ab8f5; display: block; }
+    .status.success { background: #1a2e1a; border: 1px solid #2a4a2a; color: #6fcf97; display: block; }
+    .status.error   { background: #2e1a1a; border: 1px solid #4a2a2a; color: #eb5757; display: block; }
+
+    .token-box {
+      margin-top: 1.25rem;
+      display: none;
+    }
+
+    .token-box label { margin-bottom: 0.5rem; }
+
+    .token-value {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #6fcf97;
+      font-family: monospace;
+      font-size: 0.75rem;
+      word-break: break-all;
+      white-space: pre-wrap;
+      resize: none;
+      outline: none;
+      cursor: text;
+    }
+
+    .copy-btn {
+      margin-top: 0.6rem;
+      width: auto;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.8rem;
+      background: #222;
+      color: #ccc;
+      border: 1px solid #333;
+    }
+
+    .copy-btn:hover { background: #2a2a2a; opacity: 1; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #222;
+      margin: 1.5rem 0;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #444;
+      border-top-color: #aaa;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="card" id="app"></div>
+
+<script>
+  const app = document.getElementById('app')
+  const token = new URLSearchParams(location.search).get('token')
+
+  token ? renderValidate(token) : renderForm()
+
+  /* ── Request magic link ───────────────────────── */
+  function renderForm() {
+    app.innerHTML = `
+      <div class="logo">✦ magic link</div>
+      <p class="subtitle">Enter your email to receive a sign-in link.</p>
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" autofocus />
+      <button id="submit-btn">Send magic link</button>
+      <div class="status" id="status"></div>
+    `
+    const btn   = app.querySelector('#submit-btn')
+    const input = app.querySelector('#email')
+    const status = app.querySelector('#status')
+
+    btn.addEventListener('click', async () => {
+      const email = input.value.trim()
+      if (!email) { showStatus(status, 'error', 'Please enter your email.'); return }
+
+      btn.disabled = true
+      btn.innerHTML = '<span class="spinner"></span>Sending…'
+      clearStatus(status)
+
+      try {
+        const res = await fetch('/auth/magic-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Request failed')
+        showStatus(status, 'success', `✓ Magic link sent to <strong>${email}</strong>. Check your inbox.`)
+        btn.textContent = 'Link sent'
+      } catch (err) {
+        showStatus(status, 'error', `✗ ${err.message}`)
+        btn.disabled = false
+        btn.textContent = 'Send magic link'
+      }
+    })
+
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click() })
+  }
+
+  /* ── Validate token ───────────────────────────── */
+  function renderValidate(token) {
+    app.innerHTML = `
+      <div class="logo">✦ magic link</div>
+      <p class="subtitle">Validating your sign-in link…</p>
+      <div class="status info" id="status">
+        <span class="spinner"></span>Verifying token…
+      </div>
+      <div class="token-box" id="token-box">
+        <hr class="divider" />
+        <label>Access token (JWT)</label>
+        <textarea class="token-value" id="token-value" readonly rows="5"></textarea>
+        <button class="copy-btn" id="copy-btn">Copy token</button>
+      </div>
+      <div style="margin-top:1.25rem; text-align:center;">
+        <a href="/" style="font-size:0.8rem;color:#555;text-decoration:none;">← Back to sign in</a>
+      </div>
+    `
+    const status   = app.querySelector('#status')
+    const tokenBox = app.querySelector('#token-box')
+    const tokenVal = app.querySelector('#token-value')
+    const copyBtn  = app.querySelector('#copy-btn')
+
+    fetch(`/auth/validate?token=${encodeURIComponent(token)}`)
+      .then(async res => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Validation failed')
+
+        showStatus(status, 'success', `✓ Authenticated successfully`)
+        tokenVal.value = data.access_token
+        tokenBox.style.display = 'block'
+
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(data.access_token).then(() => {
+            copyBtn.textContent = 'Copied!'
+            setTimeout(() => copyBtn.textContent = 'Copy token', 2000)
+          })
+        })
+      })
+      .catch(err => showStatus(status, 'error', `✗ ${err.message}`))
+  }
+
+  /* ── Helpers ──────────────────────────────────── */
+  function showStatus(el, type, html) {
+    el.className = `status ${type}`
+    el.innerHTML = html
+  }
+
+  function clearStatus(el) {
+    el.className = 'status'
+    el.innerHTML = ''
+  }
+</script>
+</body>
+</html>

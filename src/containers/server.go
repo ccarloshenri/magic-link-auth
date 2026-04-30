@@ -18,7 +18,6 @@ func main() {
 	dao := memory.NewInMemoryMagicLinkDAO()
 	tokenService := memory.NewCryptoTokenService()
 	authTokenService := memory.NewJWTAuthTokenService(cfg.JWTSecret)
-
 	emailService := resolveEmailService(cfg)
 
 	createBO := bo.NewCreateMagicLinkBO(dao, emailService, tokenService, cfg.BaseURL)
@@ -31,6 +30,7 @@ func main() {
 	var validateCtrl interfaces.Controller = controller.NewValidateMagicLinkController(validateProcessor)
 
 	mux := http.NewServeMux()
+	mux.Handle("GET /", http.FileServer(http.Dir("static")))
 	mux.HandleFunc("POST /auth/magic-link", createCtrl.Handle)
 	mux.HandleFunc("GET /auth/validate", validateCtrl.Handle)
 

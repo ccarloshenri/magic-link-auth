@@ -47,7 +47,7 @@ func (b *CreateMagicLinkBO) Execute(email string) error {
 		return fmt.Errorf("save magic link: %w", err)
 	}
 
-	magicURL := fmt.Sprintf("%s/auth/validate?token=%s", b.baseURL, token)
+	magicURL := fmt.Sprintf("%s?token=%s", b.baseURL, token)
 	if err := b.emailService.SendMagicLink(email, magicURL); err != nil {
 		return fmt.Errorf("send email: %w", err)
 	}
